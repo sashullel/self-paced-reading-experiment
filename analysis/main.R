@@ -1,21 +1,11 @@
-install.packages(c("lme4", "lmerTest", "pbkrtest", "sjPlot", "sjmisc", "knitr", "kableExtra", "interactions", "ggplot2", "correlation"))
-library(dplyr)
-library(emmeans)  # for post-hoc tests
-library(ggplot2)
-library(lme4)
-library(lmerTest) # for p-values
-library(sjPlot)
-library(webshot)
-library(sjmisc)
-library(knitr)
-library(correlation) 
-library(kableExtra)
+
+
 
 
 # -------------------------- loading, processing & examining data
 
 
-data <- read.csv('analysis/data/three_df.csv')
+data <- read.csv('analysis/data/five_df.csv')
 names(data)
 
 data <- data %>%
@@ -104,23 +94,23 @@ print(results_df)
 
 best_model_name <- results_df$Model[1]
 best_model <- model_results[[best_model_name]]$model
-cat('best model:', best_model_name, "\n")
+cat("best model:", best_model_name, "\n")
 
 # -------------------------- result - include ipm + familiarity
 
 # -------------------------- mixed-effects model
 
 # for idiom segment
-model <- lmer(unit_rt_log ~ literality * (ipm + familiarity + biasing_context) + 
-                (1 | participant) + (1 | trial_order),
-              data = data)
-
-# for resolution and last segment
-# model <- lmer(unit_rt_log ~ literality * (ipm + familiarity + biasing_context * resolution_type) + 
+# model <- lmer(unit_rt_log ~ literality * (ipm + familiarity + biasing_context) + 
 #                 (1 | participant) + (1 | trial_order),
 #               data = data)
 
-# Get model summary
+
+# for resolution and last segment
+model <- lmer(unit_rt_log ~ literality * (ipm + familiarity + biasing_context * resolution_type) + 
+                (1 | participant) + (1 | trial_order),
+              data = data)
+
 summary(model)
 
 tab_model(
@@ -135,3 +125,44 @@ tab_model(
   title = "Mixed-Effects Model Results for Reading Times",
   file = "analysis/results/idiom_segment/model_results.html"
 )
+
+
+#  ------------------------ post-hoc analysis
+
+# # if both vars are continuous (e.g. lit and fam), first calc low/mean/high values for one of the variables
+mean_fam <- mean(data$familiarity)
+sd_fam <- sd(data$familiarity)
+fam_levels <- c(
+  "Low" = mean_fam - sd_fam,
+  "Mean" = mean_fam,
+  "High" = mean_fam + sd_fam
+)
+
+emtrends(
+  model,
+  ~ familiarity,
+  var = "literality",
+  at = list(familiarity = fam_levels)
+)
+
+mean_lit <- mean(data$literality)
+sd_lit <- sd(data$literality)
+lit_levels <- c(
+  "Low" = mean_lit - sd_lit,
+  "Mean" = mean_lit,
+  "High" = mean_lit + sd_lit
+)
+
+emtrends(
+  model,
+  ~ literality,
+  var = "familiarity",
+  at = list(literality = lit_levels)
+)
+
+# if both values are categorical
+emmeans(model, pairwise ~ biasing_context | resolution_type,
+        adjust = "tukey")
+
+emmeans(model, pairwise ~ resolution_type | biasing_context, 
+        adjust = "tukey")
